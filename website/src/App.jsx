@@ -101,7 +101,7 @@ function useChip8() {
 
   // Load ROM
   const loadROM = useCallback((romName) => {
-    const romData = ROMS[romName] || ROMS.pong;
+    const romData = ROMS[romName] || ROMS.ibm;
     const newMemory = new Uint8Array(4096);
     for (let i = 0; i < romData.length; i++) {
       newMemory[0x200 + i] = romData[i];
@@ -115,7 +115,63 @@ function useChip8() {
     setDelayTimer(0);
     setSoundTimer(0);
     setDisplay(new Uint8Array(64 * 32));
+    setKeys(new Uint8Array(16));
+    setRunning(false);
+    setPaused(false);
     setCurrentROM(romName);
+  }, [memory]);
+
+  // Load ROM from file
+  const loadROMFromFile = useCallback((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const romData = new Uint8Array(e.target.result);
+      const newMemory = new Uint8Array(4096);
+
+      // Load font set into memory
+      const fontSet = [
+        0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+        0x20, 0x60, 0x20, 0x20, 0x70, // 1
+        0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+        0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+        0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+        0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+        0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+        0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+        0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+        0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+      ];
+
+      for (let i = 0; i < fontSet.length; i++) {
+        newMemory[0x50 + i] = fontSet[i]; // Font set starts at 0x50
+      }
+
+      // Load ROM data
+      for (let i = 0; i < Math.min(romData.length, 3584); i++) {
+        newMemory[0x200 + i] = romData[i];
+      }
+
+      memory.set(newMemory);
+      setPc(0x200);
+      setI(0);
+      setV(new Uint8Array(16));
+      setStack(new Uint16Array(16));
+      setSp(0);
+      setDelayTimer(0);
+      setSoundTimer(0);
+      setDisplay(new Uint8Array(64 * 32));
+      setKeys(new Uint8Array(16));
+      setRunning(false);
+      setPaused(false);
+      setCurrentROM('custom');
+    };
+    reader.readAsArrayBuffer(file);
   }, [memory]);
 
   // Run single cycle
@@ -428,7 +484,7 @@ function useChip8() {
   return {
     display, V, I, pc, stack, sp, delayTimer, soundTimer,
     running, paused, currentROM, keys,
-    setRunning, setPaused, loadROM
+    setRunning, setPaused, loadROM, loadROMFromFile
   };
 }
 
@@ -471,7 +527,14 @@ function Display({ display }) {
   );
 }
 
-function ControlPanel({ running, paused, setRunning, setPaused, loadROM, currentROM }) {
+function ControlPanel({ running, paused, setRunning, setPaused, loadROM, currentROM, onFileUpload }) {
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && onFileUpload) {
+      onFileUpload(file);
+    }
+  };
+
   return (
     <div className="control-panel">
       <div className="control-buttons">
@@ -500,11 +563,23 @@ function ControlPanel({ running, paused, setRunning, setPaused, loadROM, current
         onChange={(e) => loadROM(e.target.value)}
         value={currentROM}
       >
-        <option value="pong">Pong</option>
-        <option value="tetris">Tetris</option>
-        <option value="test">Test ROM</option>
         <option value="ibm">IBM Logo</option>
+        <option value="test">Test Pattern</option>
+        <option value="keyboard">Keyboard Test</option>
+        <option value="animation">Bouncing Ball</option>
       </select>
+
+      <div className="file-upload">
+        <label className="control-btn" style={{ display: 'block', textAlign: 'center' }}>
+          📁 Load ROM File
+          <input
+            type="file"
+            accept=".ch8,.rom,.bin"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
     </div>
   );
 }
@@ -628,7 +703,10 @@ function EmulatorSection() {
       <div className="emulator-container">
         <Display display={chip8.display} />
         <div className="control-panel">
-          <ControlPanel {...chip8} />
+          <ControlPanel
+            {...chip8}
+            onFileUpload={chip8.loadROMFromFile}
+          />
           <KeyboardMapping keys={chip8.keys} />
         </div>
       </div>
