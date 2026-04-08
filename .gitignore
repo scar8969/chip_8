@@ -1,0 +1,27 @@
+# Object files
+*.o
+*.obj
+
+# Executables
+chip8
+chip8.exe
+*.exe
+
+# Build directories
+build/
+cmake-build-*/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ROM files (if you want to keep them separate)
+*.ch8
+*.rom
+
+# OS files
+.DS_Store
+Thumbs.db
